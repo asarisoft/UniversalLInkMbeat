@@ -3,7 +3,7 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.netpolitan.netlms",
+      "package_name": "com.bficompany.mbeatlms",
       "sha256_cert_fingerprints": [
         "60:44:BA:56:A8:BC:60:09:35:6E:1A:44:BD:E0:31:EF:60:A3:2A:6E:47:8A:01:F9:85:5D:E6:D1:1C:48:01:A3"
       ]
