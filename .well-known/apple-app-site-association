@@ -3,12 +3,12 @@
     "apps": [],
     "details": [
       {
-        "appID": "X2D4TTFW55.com.bficompany.mbeatlms",
+        "appID": "X2D4TTFW55.com.bfi.mbeatlms",
         "paths": [
-          "/course/*",
-          "/event/*",
-          "/assignment/*",
-          "/home"
+          "/home",
+          "/course", "/course/*",
+          "/event",  "/event/*",
+          "/assignment", "/assignment/*"
         ]
       }
     ]
