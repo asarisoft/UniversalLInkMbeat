@@ -36,12 +36,13 @@
       }
       .hidden { display: none !important; }
       .center { text-align: center; }
+      .link { color:#2563eb; text-decoration: underline; cursor: pointer; }
     </style>
   </head>
   <body>
     <div class="wrap">
       <div class="container">
-        <!-- Inline SVG icon (tanpa dependensi eksternal) -->
+        <!-- Icon -->
         <svg class="app-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M12 5v8m0 0l3-3m-3 3L9 10" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           <rect x="3" y="3" width="18" height="14" rx="2.5" stroke="#2563eb" stroke-width="1.5" fill="#EFF6FF"/>
@@ -49,66 +50,64 @@
         </svg>
 
         <h1>Buka di Aplikasi</h1>
-        <p>Halaman ini akan mencoba membuka aplikasi. Jika aplikasi belum terpasang, kamu akan diarahkan ke store.</p>
+        <p>Halaman ini akan mencoba membuka aplikasi. Jika aplikasi belum terpasang, kamu bisa unduh dulu.</p>
 
         <div class="center">
           <button id="openAppBtn" class="btn btn-primary">Buka di Aplikasi</button>
           <button id="downloadBtn" class="btn btn-secondary">Download Aplikasinya</button>
-        </div>
-
-        <div id="inAppHint" class="hint hidden">
-          <strong>Tips:</strong> Kamu sedang memakai browser dalam aplikasi (WhatsApp/Instagram/Facebook).
-          Klik menu <em>Open in Chrome</em>/<em>Open in Safari</em> agar tautan bisa membuka aplikasi.
+          <div id="openInChrome" class="hint hidden">
+            <strong>Tips:</strong> Kamu sedang memakai browser di dalam aplikasi (WhatsApp/Instagram/Facebook).
+            Ketuk menu <em>⋮</em> lalu pilih <em>Open in Chrome</em> agar tautan bisa membuka aplikasi.
+            <div style="margin-top:8px">
+              <span class="link" id="tryOpenChrome">Coba buka di Chrome</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
     <script>
-      // ====== KONFIGURASI ======
-      const DOMAIN_HOST             = "mb.bfi.co.id"; // <-- samakan dengan domain App Links
+      // ====== KONFIG (SESUAIKAN) ======
+      const DOMAIN_HOST             = "mb.bfi.co.id"; // domain yang diverifikasi
       const IOS_APP_STORE_URL       = "https://apps.apple.com/app/1495767928"; // ganti ke App Store app kamu
       const ANDROID_PLAY_STORE_URL  = "https://play.google.com/store/apps/details?id=com.bficompany.mbeatlms";
       const ANDROID_PACKAGE         = "com.bficompany.mbeatlms";
-      // Urutan custom scheme iOS yang akan dicoba (pilih yang kamu pakai di Info.plist)
-      const IOS_CUSTOM_SCHEMES      = ["bfiapp", "netpolitan", "mbeatlms"];
-      // ==========================
+      const IOS_CUSTOM_SCHEMES      = ["bfiapp", "netpolitan", "mbeatlms"]; // urutkan sesuai Info.plist
+      // ================================
 
-      // Util platform & in-app browser detection
+      // Deteksi platform & in-app
       const ua = navigator.userAgent || "";
-      const isAndroid = /Android/i.test(ua);
-      const isIOS = /iPhone|iPad|iPod/i.test(ua);
-      const isFacebook = /FBAN|FBAV|FB_IAB/i.test(ua);
+      const isAndroid   = /Android/i.test(ua);
+      const isIOS       = /iPhone|iPad|iPod/i.test(ua);
+      const isFacebook  = /FBAN|FBAV|FB_IAB/i.test(ua);
       const isInstagram = /Instagram/i.test(ua);
-      const isTwitter = /Twitter/i.test(ua);
-      const isLine = /Line\//i.test(ua);
-      const isWhatsApp = /WhatsApp/i.test(ua);
+      const isTwitter   = /Twitter/i.test(ua);
+      const isLine      = /Line\//i.test(ua);
+      const isWhatsApp  = /WhatsApp/i.test(ua);
       const inAppBrowser = isFacebook || isInstagram || isTwitter || isLine || isWhatsApp;
 
-      // Ambil path & query saat ini, mis. "/course?id=1"
       const fullPath = window.location.pathname + window.location.search + window.location.hash;
+      const appHttpUrl = `https://${DOMAIN_HOST}${fullPath}`;
 
-      // --- iOS: pakai custom scheme dengan fallback ke App Store ---
+      // iOS: pakai custom scheme (UL via JS hampir selalu diblok)
       function openAppIOS() {
-        // Universal Link tidak bisa dipicu automatis via JS, jadi pakai custom scheme.
         let opened = false;
         const start = Date.now();
-        let idx = 0;
+        let i = 0;
 
         const tryNext = () => {
-          if (opened || idx >= IOS_CUSTOM_SCHEMES.length) {
-            // Jika masih di halaman dalam ~2 detik, fallback ke App Store
+          if (opened || i >= IOS_CUSTOM_SCHEMES.length) {
             const elapsed = Date.now() - start;
             if (document.visibilityState !== 'hidden' && elapsed < 2200) {
+              // fallback ke App Store hanya jika benar-benar tidak beranjak
               window.location.replace(IOS_APP_STORE_URL);
             }
             return;
           }
-          const scheme = IOS_CUSTOM_SCHEMES[idx++];
+          const scheme = IOS_CUSTOM_SCHEMES[i++];
           const schemeUrl = `${scheme}://${fullPath.replace(/^\/+/, '')}`;
-          // Coba buka scheme ini
           window.location.href = schemeUrl;
 
-          // Tunggu sejenak; jika tidak pindah (tab tidak hidden), coba scheme berikut
           setTimeout(() => {
             if (document.visibilityState === 'hidden' || document.hidden) {
               opened = true;
@@ -118,7 +117,6 @@
           }, 700);
         };
 
-        // Jika user balik dari app, halaman mungkin jadi hidden -> ditandai sebagai berhasil
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'hidden') opened = true;
         }, { once: true });
@@ -126,68 +124,67 @@
         tryNext();
       }
 
-      // --- Android: intent:// WAJIB menyertakan host ---
+      // Android: prioritas App Links (https) dulu
       function openAppAndroid() {
-        // intent://{HOST}{PATH}#Intent;scheme=https;package=...;S.browser_fallback_url=...;end
-        const encodedFallback = encodeURIComponent(ANDROID_PLAY_STORE_URL);
-        const intentUrl =
-          `intent://${DOMAIN_HOST}${fullPath}` +
-          `#Intent;scheme=https;package=${ANDROID_PACKAGE};` +
-          `S.browser_fallback_url=${encodedFallback};end`;
+        if (inAppBrowser) {
+          // In-app browser sering blok intent:// & deep link → jangan kirim ke Play Store
+          // Tampilkan instruksi "Open in Chrome" dan coba lempar ke Chrome jika bisa
+          document.getElementById('openInChrome').classList.remove('hidden');
+          return;
+        }
 
-        // Coba buka app
+        // 1) Coba App Links (https) – kalau verified & user gesture, harus buka app
         const start = Date.now();
-        window.location.href = intentUrl;
+        window.location.href = appHttpUrl;
 
-        // Jika tetap tidak beranjak (beberapa in-app browser blok intent://), biarkan user klik "Download"
+        // 2) Fallback: jika masih di halaman (tidak pindah ke app) dalam ~1s,
+        //    coba intent:// TANPA browser_fallback_url (hindari lari ke Play Store)
         setTimeout(() => {
-          const elapsed = Date.now() - start;
-          if (document.visibilityState !== 'hidden' && elapsed < 1800) {
-            // Jangan auto lempar ke Play Store; biarkan user pilih (tombol Download ada)
-            // Kalau mau paksa store:
-            // window.location.replace(ANDROID_PLAY_STORE_URL);
+          if (document.visibilityState !== 'hidden') {
+            const intentUrl =
+              `intent://${DOMAIN_HOST}${fullPath}` +
+              `#Intent;scheme=https;package=${ANDROID_PACKAGE};end`;
+            window.location.href = intentUrl;
           }
-        }, 1200);
+        }, 1000);
+      }
+
+      // Coba buka Chrome dari in-app browser (tidak semua IAB mengizinkan)
+      function tryOpenInChrome() {
+        const chromeIntent =
+          `intent://${DOMAIN_HOST}${fullPath}` +
+          `#Intent;scheme=https;package=com.android.chrome;end`;
+        window.location.href = chromeIntent;
+        // Jika tetap gagal, user ikuti instruksi manual di hint
       }
 
       function downloadStore() {
-        if (isIOS) {
-          window.location.href = IOS_APP_STORE_URL;
-        } else if (isAndroid) {
-          window.location.href = ANDROID_PLAY_STORE_URL;
-        } else {
-          window.location.href = ANDROID_PLAY_STORE_URL;
-        }
+        if (isIOS) window.location.href = IOS_APP_STORE_URL;
+        else if (isAndroid) window.location.href = ANDROID_PLAY_STORE_URL;
+        else window.location.href = ANDROID_PLAY_STORE_URL;
       }
 
-      // UI wiring
+      // UI bindings
       const openBtn = document.getElementById('openAppBtn');
       const downloadBtn = document.getElementById('downloadBtn');
-      const inAppHint = document.getElementById('inAppHint');
-
-      if (inAppBrowser) {
-        inAppHint.classList.remove('hidden');
-      }
+      const tryChromeBtn = document.getElementById('tryOpenChrome');
 
       openBtn.addEventListener('click', () => {
         if (isIOS) openAppIOS();
         else if (isAndroid) openAppAndroid();
         else downloadStore();
       });
-
       downloadBtn.addEventListener('click', downloadStore);
+      tryChromeBtn.addEventListener('click', tryOpenInChrome);
 
-      // AUTO-TRY (opsional): iOS biasanya butuh gesture; Android masih bisa dicoba
+      // AUTO-TRY: hanya untuk Android non-in-app (iOS butuh gesture)
       window.addEventListener('load', () => {
-        setTimeout(() => {
-          if (isIOS) {
-            // Jangan auto di in-app browser; biarkan user klik tombol & buka di Safari
-            if (!inAppBrowser) openAppIOS();
-          } else if (isAndroid) {
-            // Boleh auto-try di Android; kalau gagal user bisa klik tombol
-            openAppAndroid();
-          }
-        }, 600);
+        if (isAndroid && !inAppBrowser) {
+          setTimeout(openAppAndroid, 600);
+        }
+        if (inAppBrowser) {
+          document.getElementById('openInChrome').classList.remove('hidden');
+        }
       });
     </script>
   </body>
