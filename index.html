@@ -58,18 +58,20 @@
 
         <div id="inAppHint" class="hint hidden">
           <strong>Tips:</strong> Kamu sedang memakai browser dalam aplikasi (WhatsApp/Instagram/Facebook).
-          Klik menu <em>Open in Safari</em> / <em>Open in Chrome</em> di pojok agar tautan bisa membuka aplikasi.
+          Klik menu <em>Open in Chrome</em>/<em>Open in Safari</em> agar tautan bisa membuka aplikasi.
         </div>
       </div>
     </div>
 
     <script>
-      // ====== KONFIGURASI (EDIT SESUAI APP KAMU) ======
-      const IOS_APP_STORE_URL       = "https://apps.apple.com/app/1495767928"; // TODO: ganti ke App Store kamu
-      const ANDROID_PLAY_STORE_URL  = "https://play.google.com/store/apps/details?id=com.bficompany.mbeatlms"; // TODO
-      const CUSTOM_SCHEME           = "mbeatlms"; // TODO: ganti ke custom scheme yang didaftarkan di app iOS/Android
-      const ANDROID_PACKAGE         = "com.bficompany.mbeatlms"; // untuk intent:// (opsional jika cuma redirect store)
-      // ================================================
+      // ====== KONFIGURASI ======
+      const DOMAIN_HOST             = "mb.bfi.co.id"; // <-- samakan dengan domain App Links
+      const IOS_APP_STORE_URL       = "https://apps.apple.com/app/1495767928"; // ganti ke App Store app kamu
+      const ANDROID_PLAY_STORE_URL  = "https://play.google.com/store/apps/details?id=com.bficompany.mbeatlms";
+      const ANDROID_PACKAGE         = "com.bficompany.mbeatlms";
+      // Urutan custom scheme iOS yang akan dicoba (pilih yang kamu pakai di Info.plist)
+      const IOS_CUSTOM_SCHEMES      = ["bfiapp", "netpolitan", "mbeatlms"];
+      // ==========================
 
       // Util platform & in-app browser detection
       const ua = navigator.userAgent || "";
@@ -82,36 +84,70 @@
       const isWhatsApp = /WhatsApp/i.test(ua);
       const inAppBrowser = isFacebook || isInstagram || isTwitter || isLine || isWhatsApp;
 
-      // Ambil path & query saat ini, mis. "/event?id=1"
-      const pathAndQuery = window.location.pathname.replace(/^\/+/, '') + window.location.search;
+      // Ambil path & query saat ini, mis. "/course?id=1"
+      const fullPath = window.location.pathname + window.location.search + window.location.hash;
 
+      // --- iOS: pakai custom scheme dengan fallback ke App Store ---
       function openAppIOS() {
-        // iOS: Universal Link tidak bisa dipicu via JS.
-        // Jadi gunakan CUSTOM SCHEME -> jika gagal, fallback ke App Store.
-        const schemeUrl = `${CUSTOM_SCHEME}://${pathAndQuery || ''}`;
+        // Universal Link tidak bisa dipicu automatis via JS, jadi pakai custom scheme.
+        let opened = false;
         const start = Date.now();
+        let idx = 0;
 
-        // Coba buka scheme
-        window.location.href = schemeUrl;
-
-        // Fallback setelah ~1.2s (user tetap bisa klik tombol download lebih cepat)
-        setTimeout(() => {
-          const now = Date.now();
-          // Heuristik: jika masih di halaman (tidak background), redirect ke store
-          if (document.visibilityState !== 'hidden' && (now - start) < 2000) {
-            window.location.replace(IOS_APP_STORE_URL);
+        const tryNext = () => {
+          if (opened || idx >= IOS_CUSTOM_SCHEMES.length) {
+            // Jika masih di halaman dalam ~2 detik, fallback ke App Store
+            const elapsed = Date.now() - start;
+            if (document.visibilityState !== 'hidden' && elapsed < 2200) {
+              window.location.replace(IOS_APP_STORE_URL);
+            }
+            return;
           }
-        }, 1200);
+          const scheme = IOS_CUSTOM_SCHEMES[idx++];
+          const schemeUrl = `${scheme}://${fullPath.replace(/^\/+/, '')}`;
+          // Coba buka scheme ini
+          window.location.href = schemeUrl;
+
+          // Tunggu sejenak; jika tidak pindah (tab tidak hidden), coba scheme berikut
+          setTimeout(() => {
+            if (document.visibilityState === 'hidden' || document.hidden) {
+              opened = true;
+              return;
+            }
+            tryNext();
+          }, 700);
+        };
+
+        // Jika user balik dari app, halaman mungkin jadi hidden -> ditandai sebagai berhasil
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden') opened = true;
+        }, { once: true });
+
+        tryNext();
       }
 
+      // --- Android: intent:// WAJIB menyertakan host ---
       function openAppAndroid() {
-        // Android: intent:// akan coba buka app, dan jika gagal gunakan browser_fallback_url
+        // intent://{HOST}{PATH}#Intent;scheme=https;package=...;S.browser_fallback_url=...;end
         const encodedFallback = encodeURIComponent(ANDROID_PLAY_STORE_URL);
-        const intentUrl = `intent://${pathAndQuery || ''}#Intent;scheme=https;package=${ANDROID_PACKAGE};S.browser_fallback_url=${encodedFallback};end`;
+        const intentUrl =
+          `intent://${DOMAIN_HOST}${fullPath}` +
+          `#Intent;scheme=https;package=${ANDROID_PACKAGE};` +
+          `S.browser_fallback_url=${encodedFallback};end`;
 
-        // Di sebagian in-app browser, intent:// diblok.
-        // Tetap coba, kalau tidak terjadi apa-apa, tombol Download tetap tersedia.
+        // Coba buka app
+        const start = Date.now();
         window.location.href = intentUrl;
+
+        // Jika tetap tidak beranjak (beberapa in-app browser blok intent://), biarkan user klik "Download"
+        setTimeout(() => {
+          const elapsed = Date.now() - start;
+          if (document.visibilityState !== 'hidden' && elapsed < 1800) {
+            // Jangan auto lempar ke Play Store; biarkan user pilih (tombol Download ada)
+            // Kalau mau paksa store:
+            // window.location.replace(ANDROID_PLAY_STORE_URL);
+          }
+        }, 1200);
       }
 
       function downloadStore() {
@@ -120,7 +156,6 @@
         } else if (isAndroid) {
           window.location.href = ANDROID_PLAY_STORE_URL;
         } else {
-          // Desktop atau platform lain: arahkan ke landing page umum (pilih salah satu)
           window.location.href = ANDROID_PLAY_STORE_URL;
         }
       }
@@ -142,14 +177,14 @@
 
       downloadBtn.addEventListener('click', downloadStore);
 
-      // AUTO-TRY (opsional): coba buka app beberapa ratus ms setelah halaman tampil
-      // Di iOS sering diblokir tanpa gesture, tapi tidak ada ruginya mencoba.
+      // AUTO-TRY (opsional): iOS biasanya butuh gesture; Android masih bisa dicoba
       window.addEventListener('load', () => {
         setTimeout(() => {
           if (isIOS) {
-            // Jangan auto di in-app browser; lebih baik user buka di Safari
+            // Jangan auto di in-app browser; biarkan user klik tombol & buka di Safari
             if (!inAppBrowser) openAppIOS();
           } else if (isAndroid) {
+            // Boleh auto-try di Android; kalau gagal user bisa klik tombol
             openAppAndroid();
           }
         }, 600);
