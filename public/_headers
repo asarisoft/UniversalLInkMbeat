@@ -1,4 +1,12 @@
-/.well-known/apple-app-site-association
+/.well-known/assetlinks.json
   Content-Type: application/json
   Cache-Control: max-age=300
   
+/.well-known/apple-app-site-association
+  Content-Type: application/json
+  Cache-Control: max-age=300
+
+/apple-app-site-association
+  Content-Type: application/json
+  Cache-Control: max-age=300
+

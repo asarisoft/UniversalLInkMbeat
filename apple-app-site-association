@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "X2D4TTFW55.com.bfi.mbeatlms",
+        "paths": [
+          "/home",
+          "/course", "/course/*",
+          "/event",  "/event/*",
+          "/assignment", "/assignment/*"
+        ]
+      }
+    ]
+  }
+}
