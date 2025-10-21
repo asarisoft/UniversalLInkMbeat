@@ -54,7 +54,7 @@
 
         <div class="center">
           <button id="openAppBtn" class="btn btn-primary">Buka di Aplikasi</button>
-          <button id="openWebBtn" class="btn btn-secondary">Buka Web</button>
+          <button id="openWebBtn" class="btn btn-secondary">Buka Web.</button>
           <div id="openInChrome" class="hint hidden">
             <strong>Tips:</strong> Kamu sedang memakai browser di dalam aplikasi (WhatsApp/Instagram/Facebook).
             Ketuk menu <em>⋮</em> lalu pilih <em>Open in Chrome</em> agar tautan bisa membuka aplikasi.
@@ -69,7 +69,7 @@
     <script>
       // ====== KONFIG (SESUAIKAN) ======
       const DOMAIN_HOST             = "mb.bfi.co.id"; // domain yang diverifikasi
-      const WEB_URL                 = "https://mbeat.bfi.co.id/universal-link-handler"; // URL web sebagai fallback
+      const WEB_URL                 = "https://mbeat.bfi.co.id"; // URL web sebagai fallback
       const ANDROID_PACKAGE         = "com.bficompany.mbeatlms";
       const IOS_CUSTOM_SCHEMES      = ["bfiapp", "netpolitan", "mbeatlms"]; // urutkan sesuai Info.plist
       // ================================
@@ -171,11 +171,22 @@
       openWebBtn.addEventListener('click', openWeb);
       tryChromeBtn.addEventListener('click', tryOpenInChrome);
 
-      // AUTO-TRY: hanya untuk Android non-in-app (iOS butuh gesture)
+      // AUTO-TRY: untuk semua platform
       window.addEventListener('load', () => {
+        // Untuk Android non-in-app, coba buka otomatis
         if (isAndroid && !inAppBrowser) {
           setTimeout(openAppAndroid, 600);
+        } 
+        // Untuk iOS non-in-app, coba buka otomatis
+        else if (isIOS && !inAppBrowser) {
+          setTimeout(openAppIOS, 600);
         }
+        // Untuk browser lain atau desktop, langsung ke web
+        else if (!isAndroid && !isIOS) {
+          setTimeout(openWeb, 600);
+        }
+        
+        // Tampilkan petunjuk untuk in-app browser
         if (inAppBrowser) {
           document.getElementById('openInChrome').classList.remove('hidden');
         }
