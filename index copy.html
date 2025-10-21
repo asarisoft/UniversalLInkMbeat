@@ -54,7 +54,7 @@
 
         <div class="center">
           <button id="openAppBtn" class="btn btn-primary">Buka di Aplikasi</button>
-          <button id="openWebBtn" class="btn btn-secondary">Buka Web</button>
+          <button id="downloadBtn" class="btn btn-secondary">Download Aplikasinya</button>
           <div id="openInChrome" class="hint hidden">
             <strong>Tips:</strong> Kamu sedang memakai browser di dalam aplikasi (WhatsApp/Instagram/Facebook).
             Ketuk menu <em>⋮</em> lalu pilih <em>Open in Chrome</em> agar tautan bisa membuka aplikasi.
@@ -69,7 +69,8 @@
     <script>
       // ====== KONFIG (SESUAIKAN) ======
       const DOMAIN_HOST             = "mb.bfi.co.id"; // domain yang diverifikasi
-      const WEB_URL                 = "https://mbeat.bfi.co.id/universal-link-handler"; // URL web sebagai fallback
+      const IOS_APP_STORE_URL       = "https://apps.apple.com/app/1495767928"; // ganti ke App Store app kamu
+      const ANDROID_PLAY_STORE_URL  = "https://play.google.com/store/apps/details?id=com.bficompany.mbeatlms";
       const ANDROID_PACKAGE         = "com.bficompany.mbeatlms";
       const IOS_CUSTOM_SCHEMES      = ["bfiapp", "netpolitan", "mbeatlms"]; // urutkan sesuai Info.plist
       // ================================
@@ -98,8 +99,8 @@
           if (opened || i >= IOS_CUSTOM_SCHEMES.length) {
             const elapsed = Date.now() - start;
             if (document.visibilityState !== 'hidden' && elapsed < 2200) {
-              // fallback ke Web URL dengan parameter yang sama
-              window.location.replace(WEB_URL + fullPath);
+              // fallback ke App Store hanya jika benar-benar tidak beranjak
+              window.location.replace(IOS_APP_STORE_URL);
             }
             return;
           }
@@ -126,8 +127,9 @@
       // Android: prioritas App Links (https) dulu
       function openAppAndroid() {
         if (inAppBrowser) {
-          // In-app browser sering blok intent:// & deep link → arahkan ke web
-          window.location.href = WEB_URL + fullPath;
+          // In-app browser sering blok intent:// & deep link → jangan kirim ke Play Store
+          // Tampilkan instruksi "Open in Chrome" dan coba lempar ke Chrome jika bisa
+          document.getElementById('openInChrome').classList.remove('hidden');
           return;
         }
 
@@ -136,11 +138,13 @@
         window.location.href = appHttpUrl;
 
         // 2) Fallback: jika masih di halaman (tidak pindah ke app) dalam ~1s,
-        //    coba intent:// dengan fallback ke web URL
+        //    coba intent:// TANPA browser_fallback_url (hindari lari ke Play Store)
         setTimeout(() => {
           if (document.visibilityState !== 'hidden') {
-            // Jika gagal, langsung arahkan ke web
-            window.location.href = WEB_URL + fullPath;
+            const intentUrl =
+              `intent://${DOMAIN_HOST}${fullPath}` +
+              `#Intent;scheme=https;package=${ANDROID_PACKAGE};end`;
+            window.location.href = intentUrl;
           }
         }, 1000);
       }
@@ -154,21 +158,23 @@
         // Jika tetap gagal, user ikuti instruksi manual di hint
       }
 
-      function openWeb() {
-        window.location.href = WEB_URL + fullPath;
+      function downloadStore() {
+        if (isIOS) window.location.href = IOS_APP_STORE_URL;
+        else if (isAndroid) window.location.href = ANDROID_PLAY_STORE_URL;
+        else window.location.href = ANDROID_PLAY_STORE_URL;
       }
 
       // UI bindings
       const openBtn = document.getElementById('openAppBtn');
-      const openWebBtn = document.getElementById('openWebBtn');
+      const downloadBtn = document.getElementById('downloadBtn');
       const tryChromeBtn = document.getElementById('tryOpenChrome');
 
       openBtn.addEventListener('click', () => {
         if (isIOS) openAppIOS();
         else if (isAndroid) openAppAndroid();
-        else openWeb();
+        else downloadStore();
       });
-      openWebBtn.addEventListener('click', openWeb);
+      downloadBtn.addEventListener('click', downloadStore);
       tryChromeBtn.addEventListener('click', tryOpenInChrome);
 
       // AUTO-TRY: hanya untuk Android non-in-app (iOS butuh gesture)
