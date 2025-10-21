@@ -37,6 +37,7 @@
       .hidden { display: none !important; }
       .center { text-align: center; }
       .link { color:#2563eb; text-decoration: underline; cursor: pointer; }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
   </head>
   <body>
@@ -53,14 +54,14 @@
         <p>Halaman ini akan mencoba membuka aplikasi. Jika aplikasi belum terpasang, kamu bisa unduh dulu.</p>
 
         <div class="center">
-          <button id="openAppBtn" class="btn btn-primary">Buka di Aplikasi</button>
-          <button id="openWebBtn" class="btn btn-secondary">Buka Web.</button>
-          <div id="openInChrome" class="hint hidden">
-            <strong>Tips:</strong> Kamu sedang memakai browser di dalam aplikasi (WhatsApp/Instagram/Facebook).
-            Ketuk menu <em>⋮</em> lalu pilih <em>Open in Chrome</em> agar tautan bisa membuka aplikasi.
-            <div style="margin-top:8px">
-              <span class="link" id="tryOpenChrome">Coba buka di Chrome</span>
-            </div>
+          <!-- Tombol disembunyikan di awal, hanya muncul jika redirect gagal -->
+          <div id="buttonContainer" class="hidden">
+            <button id="openWebBtn" class="btn btn-secondary">Buka Web</button>
+            <button id="downloadBtn" class="btn btn-secondary" style="margin-top: 8px;">Download</button>
+          </div>
+          <div id="loadingIndicator">
+            <p>Mencoba membuka aplikasi...</p>
+            <div style="width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #2563eb; border-radius: 50%; margin: 10px auto; animation: spin 1s linear infinite;"></div>
           </div>
         </div>
       </div>
@@ -69,7 +70,9 @@
     <script>
       // ====== KONFIG (SESUAIKAN) ======
       const DOMAIN_HOST             = "mb.bfi.co.id"; // domain yang diverifikasi
-      const WEB_URL                 = "https://mbeat.bfi.co.id"; // URL web sebagai fallback
+      const WEB_URL                 = "https://mbeat.bfi.co.id/universal-link-handler"; // URL web sebagai fallback
+      const IOS_APP_STORE_URL       = "https://apps.apple.com/app/1495767928"; // App Store URL
+      const ANDROID_PLAY_STORE_URL  = "https://play.google.com/store/apps/details?id=com.bficompany.mbeatlms"; // Play Store URL
       const ANDROID_PACKAGE         = "com.bficompany.mbeatlms";
       const IOS_CUSTOM_SCHEMES      = ["bfiapp", "netpolitan", "mbeatlms"]; // urutkan sesuai Info.plist
       // ================================
@@ -78,12 +81,7 @@
       const ua = navigator.userAgent || "";
       const isAndroid   = /Android/i.test(ua);
       const isIOS       = /iPhone|iPad|iPod/i.test(ua);
-      const isFacebook  = /FBAN|FBAV|FB_IAB/i.test(ua);
-      const isInstagram = /Instagram/i.test(ua);
-      const isTwitter   = /Twitter/i.test(ua);
-      const isLine      = /Line\//i.test(ua);
-      const isWhatsApp  = /WhatsApp/i.test(ua);
-      const inAppBrowser = isFacebook || isInstagram || isTwitter || isLine || isWhatsApp;
+      const inAppBrowser = /FBAN|FBAV|FB_IAB|Instagram|Twitter|Line|WhatsApp/i.test(ua);
 
       const fullPath = window.location.pathname + window.location.search + window.location.hash;
       const appHttpUrl = `https://${DOMAIN_HOST}${fullPath}`;
@@ -92,33 +90,22 @@
       function openAppIOS() {
         let opened = false;
         const start = Date.now();
-        let i = 0;
 
         const tryNext = () => {
-          if (opened || i >= IOS_CUSTOM_SCHEMES.length) {
-            const elapsed = Date.now() - start;
-            if (document.visibilityState !== 'hidden' && elapsed < 2200) {
-              // fallback ke Web URL dengan parameter yang sama
-              window.location.replace(WEB_URL + fullPath);
-            }
+          if (opened || Date.now() - start > 2000) {
+            // fallback ke Web URL
+            window.location.replace(WEB_URL + fullPath);
             return;
           }
-          const scheme = IOS_CUSTOM_SCHEMES[i++];
+          const scheme = IOS_CUSTOM_SCHEMES.shift();
           const schemeUrl = `${scheme}://${fullPath.replace(/^\/+/, '')}`;
           window.location.href = schemeUrl;
 
           setTimeout(() => {
-            if (document.visibilityState === 'hidden' || document.hidden) {
-              opened = true;
-              return;
-            }
+            if (document.visibilityState === 'hidden') opened = true;
             tryNext();
           }, 700);
         };
-
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'hidden') opened = true;
-        }, { once: true });
 
         tryNext();
       }
@@ -131,64 +118,52 @@
           return;
         }
 
-        // 1) Coba App Links (https) – kalau verified & user gesture, harus buka app
-        const start = Date.now();
-        window.location.href = appHttpUrl;
-
-        // 2) Fallback: jika masih di halaman (tidak pindah ke app) dalam ~1s,
-        //    coba intent:// dengan fallback ke web URL
-        setTimeout(() => {
-          if (document.visibilityState !== 'hidden') {
-            // Jika gagal, langsung arahkan ke web
-            window.location.href = WEB_URL + fullPath;
-          }
-        }, 1000);
-      }
-
-      // Coba buka Chrome dari in-app browser (tidak semua IAB mengizinkan)
-      function tryOpenInChrome() {
-        const chromeIntent =
-          `intent://${DOMAIN_HOST}${fullPath}` +
-          `#Intent;scheme=https;package=com.android.chrome;end`;
-        window.location.href = chromeIntent;
-        // Jika tetap gagal, user ikuti instruksi manual di hint
+        const intentUrl = `intent://${DOMAIN_HOST}${fullPath}` +
+          `#Intent;scheme=https;package=${ANDROID_PACKAGE};S.browser_fallback_url=${encodeURIComponent(WEB_URL + fullPath)};end`;
+        window.location.href = intentUrl;
       }
 
       function openWeb() {
         window.location.href = WEB_URL + fullPath;
       }
 
+      function downloadStore() {
+        if (isIOS) window.location.href = IOS_APP_STORE_URL;
+        else window.location.href = ANDROID_PLAY_STORE_URL;
+      }
+
+      // Fungsi untuk menampilkan tombol jika redirect gagal
+      function showButtons() {
+        document.getElementById('loadingIndicator').classList.add('hidden');
+        document.getElementById('buttonContainer').classList.remove('hidden');
+      }
+
       // UI bindings
-      const openBtn = document.getElementById('openAppBtn');
       const openWebBtn = document.getElementById('openWebBtn');
-      const tryChromeBtn = document.getElementById('tryOpenChrome');
+      const downloadBtn = document.getElementById('downloadBtn');
 
-      openBtn.addEventListener('click', () => {
-        if (isIOS) openAppIOS();
-        else if (isAndroid) openAppAndroid();
-        else openWeb();
-      });
       openWebBtn.addEventListener('click', openWeb);
-      tryChromeBtn.addEventListener('click', tryOpenInChrome);
+      downloadBtn.addEventListener('click', downloadStore);
 
-      // AUTO-TRY: untuk semua platform
+      // AUTO-TRY: untuk Android non-in-app (iOS butuh gesture)
       window.addEventListener('load', () => {
-        // Untuk Android non-in-app, coba buka otomatis
         if (isAndroid && !inAppBrowser) {
-          setTimeout(openAppAndroid, 600);
+          setTimeout(openAppAndroid, 300);
+          setTimeout(showButtons, 2500);
         } 
-        // Untuk iOS non-in-app, coba buka otomatis
         else if (isIOS && !inAppBrowser) {
-          setTimeout(openAppIOS, 600);
+          setTimeout(openAppIOS, 300);
+          setTimeout(showButtons, 2500);
+        } else {
+          // Untuk browser lain atau desktop, langsung ke web
+          openWeb();
         }
-        // Untuk browser lain atau desktop, langsung ke web
-        else if (!isAndroid && !isIOS) {
-          setTimeout(openWeb, 600);
-        }
-        
-        // Tampilkan petunjuk untuk in-app browser
-        if (inAppBrowser) {
-          document.getElementById('openInChrome').classList.remove('hidden');
+      });
+
+      // Tambahkan listener untuk deteksi jika halaman masih terbuka setelah upaya redirect
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          setTimeout(showButtons, 1000);
         }
       });
     </script>
