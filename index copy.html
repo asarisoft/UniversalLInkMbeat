@@ -160,7 +160,83 @@
     </div>
   </div>
 
-  
+  <script>
+    const DOMAIN_HOST = "mb.bfi.co.id";
+    const WEB_URL = "https://mbeat.bfi.co.id/universal-link-handler"; // Web fallback URL
+    const ANDROID_PACKAGE = "com.bficompany.mbeatlms";
+    const IOS_CUSTOM_SCHEMES = ["bfiapp", "netpolitan", "mbeatlms"];
+
+    const ua = navigator.userAgent || "";
+    const isAndroid = /Android/i.test(ua);
+    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+    const fullPath = window.location.pathname + window.location.search + window.location.hash;
+
+    const appPath = convertUrlForApp(fullPath);
+    const appHttpUrl = `${DOMAIN_HOST}${appPath}`;
+    const mbeatUrl = `${WEB_URL}${fullPath}`;
+
+    function convertUrlForApp(path) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const type = urlParams.get('type');
+      const id = urlParams.get('id');
+
+      if (type && id) {
+        return `/${type}/?id=${id}`;
+      }
+      return `/home`;
+    }
+
+    function openAppIOS() {
+      const scheme = IOS_CUSTOM_SCHEMES[0];
+      const schemeUrl = `${scheme}://${appHttpUrl}`;
+      window.location.href = schemeUrl;
+      setTimeout(() => {
+        window.location.replace(mbeatUrl);
+      }, 2000);
+    }
+
+    function openAppAndroid() {
+      window.location.href = `https://${appHttpUrl}`;
+      const timeout = setTimeout(() => {
+        window.location.href = fallbackUrl;
+      }, 1500);
+    }
+
+    // function openAppAndroid() {
+    //   const appUrl = `bfiapp://${appHttpUrl}`;
+    //   const fallbackUrl = mbeatUrl;
+    //   let hasHidden = false;
+
+    //   // Kalau user pindah ke app (tab jadi hidden)
+    //   document.addEventListener('visibilitychange', () => {
+    //     if (document.hidden) hasHidden = true;
+    //   });
+
+    //   // Coba buka app
+    //   window.location.href = appUrl;
+
+    //   // Cek 1.5 detik kemudian
+    //   setTimeout(() => {
+    //     // Kalau tab tidak pernah hidden → app tidak terinstal
+    //     if (!hasHidden) {
+    //       window.location.href = fallbackUrl;
+    //     }
+    //   }, 1500);
+    // }
+
+    window.addEventListener('load', () => {
+      if (isAndroid) {
+        // Langsung coba buka aplikasi Android
+        openAppAndroid();
+      } else if (isIOS) {
+        // Langsung coba buka aplikasi iOS
+        openAppIOS();
+      } else {
+        window.location.replace(mbeatUrl);
+      }
+    });
+  </script>
 </body>
 
 </html>
